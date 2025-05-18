@@ -1,0 +1,10 @@
+{
+  "name": "agents-ia-langchain_asimov",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Natanael <taelima1997@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
