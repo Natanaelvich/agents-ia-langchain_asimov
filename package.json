@@ -16,8 +16,11 @@
   },
   "keywords": [],
   "dependencies": {
+    "@langchain/core": "^0.3.56",
+    "@langchain/openai": "^0.5.10",
     "@types/node": "^22.15.18",
     "dotenv": "^16.5.0",
-    "openai": "^4.100.0"
+    "openai": "^4.100.0",
+    "zod": "^3.25.4"
   }
 }
