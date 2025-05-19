@@ -9,6 +9,7 @@
 import OpenAI from 'openai';
 import { config } from 'dotenv';
 import { ChatCompletionTool } from 'openai/resources/chat/completions';
+import { Logger } from './Logger';
 
 // Carregando variáveis de ambiente do arquivo .env
 config();
@@ -107,6 +108,7 @@ const tools: ChatCompletionTool[] = [
  */
 async function main() {
   try {
+    Logger.info('Iniciando processo de function calling\n');
     // Primeira chamada - O modelo decide se precisa usar a função
     const response = await client.chat.completions.create({
       model: 'gpt-3.5-turbo-0125',
@@ -118,10 +120,11 @@ async function main() {
     });
 
     const message = response.choices[0].message;
-    console.log('Initial response:', message);
+    Logger.debug(`Resposta inicial: ${JSON.stringify(message, null, 2)}\n`);
 
     // Se o modelo decidiu usar a função
     if (message.tool_calls) {
+      Logger.info('Modelo decidiu usar a função de temperatura\n');
       const toolCall = message.tool_calls[0];
       const functionArgs = JSON.parse(toolCall.function.arguments) as WeatherFunctionParams;
       
@@ -130,6 +133,8 @@ async function main() {
         functionArgs.local,
         functionArgs.unidade
       );
+
+      Logger.debug(`Resultado da função: ${observation}\n`);
 
       // Segunda chamada - Enviando o resultado da função para o modelo
       const finalResponse = await client.chat.completions.create({
@@ -140,7 +145,6 @@ async function main() {
           {
             tool_call_id: toolCall.id,
             role: 'tool',
-            // name: toolCall.function.name,
             content: observation
           }
         ],
@@ -148,10 +152,11 @@ async function main() {
         tool_choice: 'auto'
       });
 
-      console.log('Final response:', finalResponse.choices[0].message.content);
+      Logger.success('Resposta final recebida com sucesso\n');
+      Logger.debug(`Resposta final: ${finalResponse.choices[0].message.content}\n`);
     }
   } catch (error) {
-    console.error('Error:', error);
+    Logger.error(`Erro no processo de function calling: ${error}\n`);
   }
 }
 
@@ -164,32 +169,43 @@ async function main() {
  * - { type: 'function', function: { name: '...' } }: Força o uso de uma função específica
  */
 async function demonstrateToolChoices() {
-  // Exemplo com tool_choice: 'auto'
-  const autoResponse = await client.chat.completions.create({
-    model: 'gpt-3.5-turbo-0125',
-    messages: [{ role: 'user', content: 'Olá' }],
-    tools: tools,
-    tool_choice: 'auto'
-  });
-  console.log('Auto choice response:', autoResponse.choices[0].message);
+  try {
+    Logger.info('Iniciando demonstração de diferentes tool_choices\n');
 
-  // Exemplo com tool_choice: 'none'
-  const noneResponse = await client.chat.completions.create({
-    model: 'gpt-3.5-turbo-0125',
-    messages: [{ role: 'user', content: 'Qual a temperatura em Porto Alegre?' }],
-    tools: tools,
-    tool_choice: 'none'
-  });
-  console.log('None choice response:', noneResponse.choices[0].message);
+    // Exemplo com tool_choice: 'auto'
+    Logger.info('Testando tool_choice: auto\n');
+    const autoResponse = await client.chat.completions.create({
+      model: 'gpt-3.5-turbo-0125',
+      messages: [{ role: 'user', content: 'Olá' }],
+      tools: tools,
+      tool_choice: 'auto'
+    });
+    Logger.debug(`Resposta com auto choice: ${JSON.stringify(autoResponse.choices[0].message, null, 2)}\n`);
 
-  // Exemplo forçando o uso de uma função específica
-  const functionResponse = await client.chat.completions.create({
-    model: 'gpt-3.5-turbo-0125',
-    messages: [{ role: 'user', content: 'Olá' }],
-    tools: tools,
-    tool_choice: { type: 'function', function: { name: 'getCurrentTemperature' } }
-  });
-  console.log('Function choice response:', functionResponse.choices[0].message);
+    // Exemplo com tool_choice: 'none'
+    Logger.info('Testando tool_choice: none\n');
+    const noneResponse = await client.chat.completions.create({
+      model: 'gpt-3.5-turbo-0125',
+      messages: [{ role: 'user', content: 'Qual a temperatura em Porto Alegre?' }],
+      tools: tools,
+      tool_choice: 'none'
+    });
+    Logger.debug(`Resposta com none choice: ${JSON.stringify(noneResponse.choices[0].message, null, 2)}\n`);
+
+    // Exemplo forçando o uso de uma função específica
+    Logger.info('Testando tool_choice: função específica\n');
+    const functionResponse = await client.chat.completions.create({
+      model: 'gpt-3.5-turbo-0125',
+      messages: [{ role: 'user', content: 'Olá' }],
+      tools: tools,
+      tool_choice: { type: 'function', function: { name: 'getCurrentTemperature' } }
+    });
+    Logger.debug(`Resposta com function choice: ${JSON.stringify(functionResponse.choices[0].message, null, 2)}\n`);
+
+    Logger.success('Demonstração de tool_choices concluída com sucesso\n');
+  } catch (error) {
+    Logger.error(`Erro na demonstração de tool_choices: ${error}\n`);
+  }
 }
 
 // Descomente para executar os exemplos
