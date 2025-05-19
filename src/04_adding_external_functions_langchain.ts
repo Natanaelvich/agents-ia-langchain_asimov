@@ -171,6 +171,14 @@ const GetEmailsSchema = z.object({
 
 type GetEmails = z.infer<typeof GetEmailsSchema>;
 
+const emailsSchema = z.object({
+  subject: z.string().describe('Subject of the email'),
+  from: z.string().describe('From of the email'),
+  date: z.string().describe('Date of the email')
+});
+
+type Emails = z.infer<typeof emailsSchema>;
+
 /**
  * Implementação da função que simula uma API de temperatura
  */
@@ -178,7 +186,7 @@ const getEmails = (search: string, inbox: string = 'unread'): string => {
   const emailsData = {
     search: '',
     inbox: '',
-    emails: [] as { subject: string; from: string; date: string }[]
+    emails: [] as Emails[]
   };
 
   if (search.toLowerCase().includes('tecnologia') && inbox === 'read') {
@@ -229,17 +237,6 @@ const getEmails = (search: string, inbox: string = 'unread'): string => {
 /**
  * Criando a ferramenta usando o wrapper tool do LangChain
  */
-const emailsTool = tool(
-  async (input: GetEmails): Promise<string> => {
-    return getEmails(input.search, input.inbox);
-  },
-  {
-    name: 'getEmails',
-    description: 'Obtém os emails de um determinado inbox',
-    schema: GetEmailsSchema
-  }
-);
-
 const getEmailsTool = tool(
   async (input: GetEmails): Promise<string> => {
     return getEmails(input.search, input.inbox);
@@ -251,12 +248,22 @@ const getEmailsTool = tool(
   }
 );
 
+const prompt = ChatPromptTemplate.fromMessages([
+    ['system', 'Você é um assistente que busca emails'],
+    ['user', '{input}']
+  ]);
+
+  const chain = RunnableSequence.from([
+    prompt,
+    chat.bind({
+      tools: [getEmailsTool]
+    }),
+  ]);
+
 async function challenge01Case01() {
     try {
         Logger.info('Iniciando Desafio 01 - Case 01\n');
-        const resposta = await chat.invoke('Quais são os emails do inbox unread sobre tecnologia', {
-          tools: [getEmailsTool]
-        });
+        const resposta = await chain.invoke({ input: 'Quais são os emails do inbox unread sobre tecnologia' });
     
         Logger.success('Resposta recebida com sucesso\n');
         Logger.debug(`Resposta: ${JSON.stringify(resposta, null, 2)}\n`);
@@ -268,9 +275,8 @@ async function challenge01Case01() {
 async function challenge01Case02() {
   try {
     Logger.info('Iniciando Desafio 01 - Case 02\n');
-    const resposta = await chat.invoke('Quais são os emails do inbox read sobre tecnologia', {
-      tools: [getEmailsTool]
-    });
+  
+    const resposta = await chain.invoke({ input: 'Quais são os emails do inbox read sobre tecnologia' });
 
     Logger.success('Resposta recebida com sucesso\n');
     Logger.debug(`Resposta: ${JSON.stringify(resposta, null, 2)}\n`);
@@ -282,9 +288,7 @@ async function challenge01Case02() {
 async function challenge01Case03() {
   try {
     Logger.info('Iniciando Desafio 01 - Case 03\n');
-    const resposta = await chat.invoke('Quais são os emails do inbox starred sobre tecnologia', {
-      tools: [getEmailsTool]
-    });
+    const resposta = await chain.invoke({ input: 'Quais são os emails do inbox starred sobre tecnologia' });
 
     Logger.success('Resposta recebida com sucesso\n');
     Logger.debug(`Resposta: ${JSON.stringify(resposta, null, 2)}\n`);
