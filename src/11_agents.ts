@@ -8,146 +8,17 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
 import { config } from "dotenv";
 import { Logger } from "./Logger";
-import axios from "axios";
 import { MessagesPlaceholder } from "@langchain/core/prompts";
 import { AgentAction, AgentFinish } from "@langchain/core/agents";
 import { RunnablePassthrough } from "@langchain/core/runnables";
 import { AIMessage, FunctionMessage } from "@langchain/core/messages";
+import { getCurrentTemperature } from "./tools/weather";
+import { searchWikipedia } from "./tools/wikipedia";
 
 // Load environment variables
 config();
-
-/**
- * Tool Schemas
- * 
- * We use Zod to define the schema for our tool inputs.
- * This provides type safety and validation for the tool parameters.
- */
-const TemperatureArgsSchema = z.object({
-  latitude: z.number().describe("Latitude of the location to get temperature"),
-  longitude: z.number().describe("Longitude of the location to get temperature"),
-});
-
-type TemperatureArgs = z.infer<typeof TemperatureArgsSchema>;
-
-/**
- * Custom Tools Implementation
- * 
- * The @tool decorator from LangChain is used to create tools that can be used by the agent.
- * It provides:
- * 1. Type safety through Zod schemas
- * 2. Automatic function calling capability
- * 3. Integration with the agent's reasoning process
- * 
- * Each tool is defined with:
- * - A function that implements the tool's logic
- * - A configuration object that includes:
- *   - name: The name of the tool
- *   - description: A description of what the tool does
- *   - schema: The Zod schema defining the tool's input parameters
- */
-
-// Tool to get current temperature
-const getCurrentTemperature = tool(
-  async (input: TemperatureArgs): Promise<string> => {
-    try {
-      const URL = "https://api.open-meteo.com/v1/forecast";
-      const params = {
-        latitude: input.latitude,
-        longitude: input.longitude,
-        hourly: "temperature_2m",
-        forecast_days: 1,
-      };
-
-      const response = await axios.get(URL, { params });
-      
-      if (response.status === 200) {
-        const result = response.data;
-        const now = new Date();
-        const hours = result.hourly.time.map((timeStr: string) => new Date(timeStr));
-        
-        // Find closest hour to current time
-        const closestHourIndex = hours.reduce((closest: number, hour: Date, index: number) => {
-          const currentDiff = Math.abs(hour.getTime() - now.getTime());
-          const closestDiff = Math.abs(hours[closest].getTime() - now.getTime());
-          return currentDiff < closestDiff ? index : closest;
-        }, 0);
-
-        return `${result.hourly.temperature_2m[closestHourIndex]}°C`;
-      } else {
-        throw new Error(`Request to API ${URL} failed: ${response.status}`);
-      }
-    } catch (error) {
-      Logger.error(`Error getting temperature: ${error}`);
-      throw error;
-    }
-  },
-  {
-    name: "getCurrentTemperature",
-    description: "Gets the current temperature for given coordinates",
-    schema: TemperatureArgsSchema,
-  }
-);
-
-// Tool to search Wikipedia
-const searchWikipedia = tool(
-  async (input: { query: string }): Promise<string> => {
-    try {
-      const response = await axios.get("https://pt.wikipedia.org/w/api.php", {
-        params: {
-          action: "query",
-          list: "search",
-          srsearch: input.query,
-          format: "json",
-          origin: "*",
-        },
-      });
-
-      if (response.status === 200) {
-        const searchResults = response.data.query.search.slice(0, 3);
-        const summaries = [];
-
-        for (const result of searchResults) {
-          const pageResponse = await axios.get("https://pt.wikipedia.org/w/api.php", {
-            params: {
-              action: "query",
-              prop: "extracts",
-              exintro: true,
-              titles: result.title,
-              format: "json",
-              origin: "*",
-            },
-          });
-
-          if (pageResponse.status === 200) {
-            const pages = pageResponse.data.query.pages;
-            const pageId = Object.keys(pages)[0];
-            const summary = pages[pageId].extract;
-            summaries.push(`Title: ${result.title}\nSummary: ${summary}`);
-          }
-        }
-
-        return summaries.length > 0 ? summaries.join("\n\n") : "No results found";
-      } else {
-        throw new Error("Wikipedia search failed");
-      }
-    } catch (error) {
-      Logger.error(`Error searching Wikipedia: ${error}`);
-      throw error;
-    }
-  },
-  {
-    name: "searchWikipedia",
-    description: "Searches Wikipedia and returns summaries of pages for the query",
-    schema: z.object({
-      query: z.string().describe("The search query"),
-    }),
-  }
-);
 
 const tools = [getCurrentTemperature, searchWikipedia];
 
