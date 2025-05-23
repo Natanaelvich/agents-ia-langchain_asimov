@@ -17,6 +17,7 @@
   },
   "keywords": [],
   "dependencies": {
+    "@langchain/community": "^0.3.44",
     "@langchain/core": "^0.3.56",
     "@langchain/openai": "^0.5.10",
     "@types/node": "^22.15.18",
